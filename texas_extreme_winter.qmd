@@ -18,6 +18,7 @@ library(terra)       # raster handling
 library(tidyverse)
 library(tmap)        # map making
 library(viridisLite)
+library(mapview)
 ```
 
 ## Data Details & Processing
@@ -30,8 +31,9 @@ h08v05_0216<- rast('data/VNP46A1/VNP46A1.A2021047.h08v05.001.2021048091106.tif')
 h08v06_0216<- rast('data/VNP46A1/VNP46A1.A2021047.h08v06.001.2021048091105.tif')
 
 # upload prepared a Geopackages 
-roads <- read_sf('data/gis_osm_roads_free_1.gpkg')
-buildings <- read_sf('data/gis_osm_buildings_a_free_1.gpkg')
+roads <- read_sf('data/gis_osm_roads_free_1.gpkg', query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
+buildings <- read_sf('data/gis_osm_buildings_a_free_1.gpkg', query ="SELECT *
+FROM gis_osm_buildings_a_free_1`WHERE (type IS NULL AND name IS NULL)`")
 ```
 
 # Check CRS and resolutions
@@ -60,58 +62,101 @@ cat("Tile 05 vs Tile 06 (02-16-2021): ", same.crs(h08v05_0216,h08v06_0216), "\n"
 ```
 
 ## Data Merging 
-
-```{r}
-# Match extent for VIIRIS data
-h08v06_0207<- extend(h08v06_0207, h08v05_0207)
-h08v06_0216 <- extend(h08v06_0216,h08v05_0216)
-```
-
 ```{r}
 # Merge tiles together to get one raster for each date (2021-02-07 and 2021-02-16)
 VIIRS_07<- (merge(h08v05_0207, h08v06_0207)) 
 VIIRS_16<- (merge(h08v05_0216, h08v06_0216)) 
-
-
 ```
 
-## Create Blackout Mask 
+
+## Compare Pre and Post Storm
 
 ```{r}
-# Set all cells with values less than 200 nW cm-2sr-1 to NA
-VIIRS_07[VIIRS_07 < 200] <- NA
-VIIRS_16[VIIRS_16 < 200] <- NA
-
+# Create the extent of houston
 houston_ext <- ext(-96.5, -94.5, 29, 30.5)
 
-# Subset raster based on mask
-VIIRS_07_mask <- mask(VIIRS_07, mask = houston_ext)
-VIIRS_16_mask <- mask(VIIRS_16, mask = houston_ext)
+# Crop to the Houston extent
+pre_storm<- crop(VIIRS_07,houston_ext)
+post_storm <- crop(VIIRS_16,houston_ext)
 
-plot(VIIRS_07_mask)
+m_pre  <- tm_shape(pre_storm)+ 
+  tm_raster(col.scale = tm_scale_continuous_log1p(values=c('black', 'white'))) + tm_title("Pre-storm: 02-07-2021") 
+# add a title and add a title for the legenf
 
-VIIRS_07_mask_V <- VIIRS_07_mask |> 
-  as.polygons() |> 
-  st_as_sf() |>
-  st_transform(crs = 3083)
+m_post <- tm_shape(post_storm) + 
+  tm_raster(col.scale = tm_scale_continuous_log1p(values=c('black', 'white'))) + tm_title("Post-storm: 02-16-2021")
 
-VIIRS_16_mask_V <- VIIRS_16_mask |> 
-  as.polygons() |> 
-  st_as_sf() |>
-  st_transform(crs = 3083)
+tmap_arrange(m_pre, m_post, ncol = 2)
 
+storm_combined <- c(pre_storm, post_storm)
+
+light_differ <- pre_storm - post_storm
 ```
 
+## Create Mask
+
 ```{r}
-print(crs(VIIRS_07_mask_V))
-print(crs(VIIRS_16_mask_V))
-```
-```{r}
-plot(VIIRS_07_mask_V)
-plot(VIIRS_16_mask_V)
+light_differ <- pre_storm - post_storm
+
+# Set categories for severity levels
+categories <- c("No Blackout", "Blackout")
+
+# Create reclassification matrix
+rcl <- matrix(c(-Inf, 200, 0, # No blackout
+                200, Inf, 1), # Blackout
+                ncol = 3, byrow = TRUE)
+
+# Use reclassification matrix to reclassify dNBR raster
+reclassified <- classify(light_differ, rcl = rcl)
+
+# drop NA
+blackout_mask <- ifel(light_differ == 0, NA, 1)
+
+# Crop to houston extent, turn into polygons, and project (CRS 3083)
+houston_blackout <- blackout_mask |> 
+  crop(houston_ext) |> 
+  as.polygons() |> 
+  st_as_sf() |> 
+  st_make_valid() |> 
+  st_transform(crs = 3083) 
+  
+
 ```
 
 ## Exclude highways from the cropped blackout mask
 
+```{r}
+# Transforming CRS to match
+highways <- st_transform(roads, crs = 3083)
+
+# Creating a 200m buffer
+highways_buffer <- highways |>
+  st_union() |>
+  st_buffer(dist = 200)
+
+# Excluding highways
+blackout_no_highways <- st_difference(houston_blackout, highways_buffer)
+```
+```{r}
+# Post-storm map with 200m highway buffer 
+tm_shape(pre_storm) +
+  tm_raster(col.scale = tm_scale_continuous_log1p(values = c("black", "white")),
+            col.legend = tm_legend(show = FALSE)) +
+tm_shape(highways_buffer) +
+  tm_polygons(fill = "#e5f04c51",col = NULL) +
+tm_title("Night Lights with 200 m Highway Buffer")
+
+```
+
 ## Identify the number of homes likely impacted by blackouts
 
+```{r}
+st_crs(buildings)
+
+homes <- st_transform(buildings, crs=3083)
+
+homes_impacted <- st_filter(homes, blackout_no_highways)
+nrow(homes_impacted)
+```
+
+About 476027 homes were impacted.
