@@ -1,7 +1,6 @@
 # **2021 Extreme Compounded Winter Storms cause Power grid Catastrophe**
 
-![Uploading 041922_Texas_powerlines.png…]()
-
+<img width="1200" height="675" alt="041922_Texas_powerlines" src="https://github.com/user-attachments/assets/3209db48-ce28-4eb3-bbd8-da9629a8a28f" />
 
 #### Author: 
 
@@ -29,10 +28,10 @@ texas_extreme_winter
 ## Data
 **Night lights:** VIIRS data is distributed through NASA’s Level-1 and Atmospheric Archive & Distribution System Distributed Active Archive Center (LAADS DAAC).
   Data files:
-  VNP46A1.A2021038.h08v05.001.2021039064328.tif: tile h08v05, collected on 2021-02-07
-  VNP46A1.A2021038.h08v06.001.2021039064329.tif: tile h08v06, collected on 2021-02-07
-  VNP46A1.A2021047.h08v05.001.2021048091106.tif: tile h08v05, collected on 2021-02-16
-  VNP46A1.A2021047.h08v06.001.2021048091105.tif: tile h08v06, collected on 2021-02-16
+  - VNP46A1.A2021038.h08v05.001.2021039064328.tif: tile h08v05, collected on 2021-02-07
+  - VNP46A1.A2021038.h08v06.001.2021039064329.tif: tile h08v06, collected on 2021-02-07
+  - VNP46A1.A2021047.h08v05.001.2021048091106.tif: tile h08v05, collected on 2021-02-16
+  - VNP46A1.A2021047.h08v06.001.2021048091105.tif: tile h08v06, collected on 2021-02-16
 
 
 **Roads:** We used Geofabrik’s download sites to retrieve a shapefile of all highways in Texas and prepared a Geopackage (.gpkg file) containing just the subset of roads that intersect the Houston metropolitan area. 
