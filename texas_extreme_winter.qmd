@@ -72,16 +72,17 @@ VIIRS_16<- (merge(h08v05_0216, h08v06_0216))
 ## Compare Pre and Post Storm
 
 ```{r}
-# Create the extent of houston
+# Create the extent of Houston
 houston_ext <- ext(-96.5, -94.5, 29, 30.5)
 
 # Crop to the Houston extent
 pre_storm<- crop(VIIRS_07,houston_ext)
 post_storm <- crop(VIIRS_16,houston_ext)
 
+# Create a set of maps comparing night light intensities before and after the first two storms
+
 m_pre  <- tm_shape(pre_storm)+ 
   tm_raster(col.scale = tm_scale_continuous_log1p(values=c('black', 'white'))) + tm_title("Pre-storm: 02-07-2021") 
-# add a title and add a title for the legenf
 
 m_post <- tm_shape(post_storm) + 
   tm_raster(col.scale = tm_scale_continuous_log1p(values=c('black', 'white'))) + tm_title("Post-storm: 02-16-2021")
@@ -90,12 +91,12 @@ tmap_arrange(m_pre, m_post, ncol = 2)
 
 storm_combined <- c(pre_storm, post_storm)
 
-light_differ <- pre_storm - post_storm
 ```
 
 ## Create Mask
 
 ```{r}
+# Raster algebra to find light intensitie difference
 light_differ <- pre_storm - post_storm
 
 # Set categories for severity levels
@@ -109,27 +110,25 @@ rcl <- matrix(c(-Inf, 200, 0, # No blackout
 # Use reclassification matrix to reclassify dNBR raster
 reclassified <- classify(light_differ, rcl = rcl)
 
-# drop NA
+# Assign blackouts and non-blackouts
 blackout_mask <- ifel(light_differ == 0, NA, 1)
 
-# Crop to houston extent, turn into polygons, and project (CRS 3083)
+# Crop to houston extent, turn into polygons, and reproject to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
 houston_blackout <- blackout_mask |> 
   crop(houston_ext) |> 
   as.polygons() |> 
   st_as_sf() |> 
   st_make_valid() |> 
   st_transform(crs = 3083) 
-  
-
 ```
 
 ## Exclude highways from the cropped blackout mask
 
 ```{r}
-# Transforming CRS to match
+# Transforming to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
 highways <- st_transform(roads, crs = 3083)
 
-# Creating a 200m buffer
+# Create a 200m buffer
 highways_buffer <- highways |>
   st_union() |>
   st_buffer(dist = 200)
@@ -138,6 +137,7 @@ highways_buffer <- highways |>
 blackout_no_highways <- st_difference(houston_blackout, highways_buffer)
 ```
 ```{r}
+
 # Post-storm map with 200m highway buffer 
 tm_shape(pre_storm) +
   tm_raster(col.scale = tm_scale_continuous_log1p(values = c("black", "white")),
@@ -151,12 +151,24 @@ tm_title("Night Lights with 200 m Highway Buffer")
 ## Identify the number of homes likely impacted by blackouts
 
 ```{r}
+# Check CRS
 st_crs(buildings)
 
+# Assign EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
 homes <- st_transform(buildings, crs=3083)
 
+# Filter to estimate for homes impacted by blackout
 homes_impacted <- st_filter(homes, blackout_no_highways)
+
+# Count amount of rows
 nrow(homes_impacted)
 ```
 
-About 476027 homes were impacted.
+Based on my analysis, an estimate of the number of 476,027 homes in Houston that lost power. This amount of homes does not seem accurate, due to the severity of the storm and the amount of residents reported to have been impacted. 
+
+## Reflection
+
+The data provides useful insight for this analysis and highlights issues that could continue to arise more frequently due to climate change. For our analysis, we used GeoPackages that included subsets of intersecting roads only for the Houston area. A more comprehensive analysis of the entire state of Texas could provide a more accurate idea of the extent of damage caused by concurrent storms.
+
+Comparing night light intensities before and after the first two storms is very informative and easy for the general public to understand. Unfortunately, due to cloud coverage, we could not compare how the intensity changed in between. It would be informative to see how they were able to restore power to the communities. When ignoring highways to minimize falsely identifying areas with reduced traffic, there is a possibility of homes being unaccounted for. With geospatial data, the boundary lines could cause potential bias due to how they were chosen and their irregular shapes.
+
