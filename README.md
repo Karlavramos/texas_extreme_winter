@@ -1,4 +1,4 @@
-# **2021 Extreme Compounded Winter Storms cause Power grid Catastrophe**
+# **2021 Extreme Compounded Winter Storms Cause Power grid Catastrophe**
 
 <img width="1200" height="675" alt="041922_Texas_powerlines" src="https://github.com/user-attachments/assets/3209db48-ce28-4eb3-bbd8-da9629a8a28f" />
 
